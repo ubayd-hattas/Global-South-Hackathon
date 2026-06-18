@@ -112,7 +112,7 @@ def main():
     openrouter_key   = require_env("OPENROUTER_API_KEY")
 
     genai.configure(api_key=gemini_key)
-    gemini_model = genai.GenerativeModel(GEMINI_MODEL)
+    gemini_model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=SYSTEM_PROMPT)
     groq_client  = Groq(api_key=groq_key)
 
     print(f"[run_models] Gemini:     {GEMINI_MODEL}")
@@ -145,7 +145,7 @@ def main():
 
     new_rows = []
     tasks = [
-        (row["prompt_id"], row["prompt"], row["language"], row["category"], row["seed_id"], model_name, model_fn)
+        (row["prompt_id"], row["prompt"], row["language"], row["harm_category"], row["seed_id"], model_name, model_fn)
         for _, row in prompts_df.iterrows()
         for model_name, model_fn in models.items()
     ]
@@ -165,7 +165,7 @@ def main():
             "prompt_id":  prompt_id,
             "seed_id":    seed_id,
             "language":   language,
-            "category":   category,
+            "harm_category": category,
             "model":      model_name,
             "prompt":     prompt,
             "response":   response_text,

@@ -34,7 +34,7 @@ from pipeline_utils import (
 )
 
 # ── Config ────────────────────────────────────────────────────────────────────
-GEMINI_MODEL = get_env("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = get_env("GEMINI_MODEL", "gemini-3.5-flash")
 
 LANGUAGES = {
     "zu": "isiZulu",
@@ -62,21 +62,24 @@ def build_variant_prompt(english_prompt: str, lang_name: str) -> str:
     )
 
 
-def generate_variant(model, english_prompt: str, lang_code: str, lang_name: str) -> str:
+def generate_variant(model, english_prompt: str, lang_name: str) -> str:
     """Call Gemini to produce one code-switched variant. Returns the text."""
     full_prompt = build_variant_prompt(english_prompt, lang_name)
 
     def call():
         response = model.generate_content(
-            [VARIANT_SYSTEM_PROMPT, full_prompt],
+            full_prompt,
             generation_config=genai.types.GenerationConfig(
                 temperature=0.7,
                 max_output_tokens=256,
             ),
         )
+        if not response.candidates:
+            return "[BLOCKED_NO_CANDIDATES]"
         return response.text.strip()
 
     return retry_with_backoff(call, attempts=4, base_delay=2.0, what=f"Gemini variant ({lang_name})")
+
 
 
 def main():
@@ -85,8 +88,9 @@ def main():
     # ── Auth ──────────────────────────────────────────────────────────────────
     api_key = require_env("GEMINI_API_KEY")
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(GEMINI_MODEL)
+    model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=VARIANT_SYSTEM_PROMPT)
     print(f"[generate_variants] Using Gemini model: {GEMINI_MODEL}")
+
 
     # ── Load seeds ────────────────────────────────────────────────────────────
     if not SEED_PROMPTS_CSV.exists():
@@ -103,8 +107,8 @@ def main():
 
     for _, seed_row in seeds.iterrows():
         seed_id = seed_row["id"]
-        english = seed_row["prompt_en"]
-        category = seed_row["category"]
+        english = seed_row["english_prompt"]
+        category = seed_row["harm_category"]
 
         # Always include the original English prompt
         rows.append(
@@ -112,7 +116,7 @@ def main():
                 "prompt_id": f"{seed_id}_en",
                 "seed_id": seed_id,
                 "language": "en",
-                "category": category,
+                "harm_category": category,
                 "prompt": english,
             }
         )
@@ -122,8 +126,9 @@ def main():
             print(f"  [{done}/{total}] seed={seed_id} lang={lang_code}...", end=" ", flush=True)
 
             try:
-                variant = generate_variant(model, english, lang_code, lang_name)
+                variant = generate_variant(model, english, lang_name)
                 status = "ok"
+
             except Exception as exc:
                 variant = f"[GENERATION_FAILED: {exc}]"
                 status = "failed"
@@ -134,7 +139,7 @@ def main():
                     "prompt_id": f"{seed_id}_{lang_code}",
                     "seed_id": seed_id,
                     "language": lang_code,
-                    "category": category,
+                    "harm_category": category,
                     "prompt": variant,
                 }
             )

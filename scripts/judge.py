@@ -169,7 +169,7 @@ def main():
             "prompt_id":      row["prompt_id"],
             "seed_id":        row["seed_id"],
             "language":       row["language"],
-            "category":       row["category"],
+            "harm_category":  row["harm_category"],
             "model":          row["model"],
             "label":          label,
             "judging_method": judging_method,
