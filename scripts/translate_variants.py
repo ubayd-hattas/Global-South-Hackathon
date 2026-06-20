@@ -24,7 +24,7 @@ from deep_translator import GoogleTranslator
 LANG_MAP = {
     "zu": {"name": "isiZulu", "google_code": "zu"},
     "af": {"name": "Afrikaans", "google_code": "af"},
-    "ss": {"name": "Swati", "google_code": "ss"},      # siSwati
+    "xh": {"name": "isiXhosa", "google_code": "ss"},      # isiXhosa
     "ts": {"name": "Tsonga", "google_code": "ts"},     # Xitsonga
 }
 

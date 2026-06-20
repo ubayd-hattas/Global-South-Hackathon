@@ -39,7 +39,7 @@ GEMINI_MODEL = get_env("GEMINI_MODEL", "gemini-3.5-flash")
 LANGUAGES = {
     "zu": "isiZulu",
     "af": "Afrikaans",
-    "ss": "Swati",
+    "xh": "isiXhosa",
     "ts": "Tsonga",   
 }
 

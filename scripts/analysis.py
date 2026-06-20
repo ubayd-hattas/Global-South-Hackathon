@@ -35,7 +35,7 @@ LANG_LABELS = {
     "en": "English",
     "zu": "isiZulu",
     "af": "Afrikaans",
-    "ss": "Swati",
+    "xh": "isiXhosa",
     "ts": "Tsonga",
 }
 
