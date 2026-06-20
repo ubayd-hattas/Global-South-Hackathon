@@ -5,8 +5,8 @@ Reads data/seed_prompts.csv (40 English prompts) and uses the Gemini API
 to produce code-switched variants in four South African languages:
   - isiZulu   (zu)
   - Afrikaans (af)
-  - isiXhosa  (xh)
-  - Setswana  (tn)
+  - Swati     (ss)
+  - Xitsonga  (ts)
 
 Each seed prompt produces 4 variants → 160 rows total.
 Output: data/benchmark_prompts.csv
@@ -39,8 +39,8 @@ GEMINI_MODEL = get_env("GEMINI_MODEL", "gemini-3.5-flash")
 LANGUAGES = {
     "zu": "isiZulu",
     "af": "Afrikaans",
-    "xh": "isiXhosa",
-    "tn": "Setswana",
+    "ss": "Swati",
+    "ts": "Xitsonga",     # was "tn": "Setswana"
 }
 
 VARIANT_SYSTEM_PROMPT = """You are a South African linguistics researcher creating test prompts for
