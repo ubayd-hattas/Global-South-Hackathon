@@ -20,7 +20,6 @@ import time
 from pathlib import Path
 
 import pandas as pd
-import google.generativeai as genai
 
 # ── Path bootstrap (must come before pipeline_utils import) ──────────────────
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -31,10 +30,11 @@ from pipeline_utils import (
     get_env,
     require_env,
     retry_with_backoff,
+    call_model,
 )
 
 # ── Config ────────────────────────────────────────────────────────────────────
-GEMINI_MODEL = get_env("GEMINI_MODEL", "gemini-3.5-flash")
+GENERATION_MODEL = get_env("GENERATION_MODEL", "openai/gpt-oss-20b")
 
 LANGUAGES = {
     "zu": "isiZulu",
@@ -62,35 +62,16 @@ def build_variant_prompt(english_prompt: str, lang_name: str) -> str:
     )
 
 
-def generate_variant(model, english_prompt: str, lang_name: str) -> str:
-    """Call Gemini to produce one code-switched variant. Returns the text."""
+def generate_variant(english_prompt: str, lang_name: str) -> str:
+    """Call OpenRouter to produce one code-switched variant. Returns the text."""
     full_prompt = build_variant_prompt(english_prompt, lang_name)
-
-    def call():
-        response = model.generate_content(
-            full_prompt,
-            generation_config=genai.types.GenerationConfig(
-                temperature=0.7,
-                max_output_tokens=256,
-            ),
-        )
-        if not response.candidates:
-            return "[BLOCKED_NO_CANDIDATES]"
-        return response.text.strip()
-
-    return retry_with_backoff(call, attempts=4, base_delay=2.0, what=f"Gemini variant ({lang_name})")
-
+    return call_model(GENERATION_MODEL, full_prompt, system_prompt=VARIANT_SYSTEM_PROMPT)
 
 
 def main():
     ensure_output_dirs()
 
-    # ── Auth ──────────────────────────────────────────────────────────────────
-    api_key = require_env("GEMINI_API_KEY")
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(GEMINI_MODEL, system_instruction=VARIANT_SYSTEM_PROMPT)
-    print(f"[generate_variants] Using Gemini model: {GEMINI_MODEL}")
-
+    print(f"[generate_variants] Using generation model: {GENERATION_MODEL}")
 
     # ── Load seeds ────────────────────────────────────────────────────────────
     if not SEED_PROMPTS_CSV.exists():
@@ -126,7 +107,7 @@ def main():
             print(f"  [{done}/{total}] seed={seed_id} lang={lang_code}...", end=" ", flush=True)
 
             try:
-                variant = generate_variant(model, english, lang_name)
+                variant = generate_variant(english, lang_name)
                 status = "ok"
 
             except Exception as exc:

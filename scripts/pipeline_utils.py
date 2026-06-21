@@ -112,5 +112,39 @@ def retry_with_backoff(fn, *, attempts: int = 4, base_delay: float = 2.0, what: 
                 break
             wait = base_delay * (2 ** (attempt - 1))
             print(f"    [retry {attempt}/{attempts - 1}] {what} failed: {exc}. Waiting {wait:.0f}s...")
-            time.sleep(wait)
     raise last_err
+
+def call_model(model_name: str, prompt: str, system_prompt: str = None) -> str:
+    """Call OpenRouter API with backoff."""
+    import requests
+    api_key = require_env("OPENROUTER_API_KEY")
+    
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": prompt})
+
+    def _call():
+        resp = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://github.com/mzansi-codeswitching-safety",
+                "X-Title": "Mzansi Code-Switching Safety",
+            },
+            json={
+                "model": model_name,
+                "messages": messages,
+                "temperature": 0.0,
+                "max_tokens": 512,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if "choices" not in data or not data["choices"]:
+            raise ValueError(f"No choices in OpenRouter response: {data}")
+        return data["choices"][0]["message"]["content"].strip()
+
+    return retry_with_backoff(_call, attempts=4, base_delay=2.0, what=f"OpenRouter ({model_name})")

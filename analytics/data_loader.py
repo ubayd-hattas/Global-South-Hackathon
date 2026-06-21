@@ -18,14 +18,14 @@ from pathlib import Path
 # Constants
 # ---------------------------------------------------------------------------
 
-VALID_LANGUAGES = ["English", "Afrikaans", "isiZulu", "isiXhosa", "Tsonga"]
+VALID_LANGUAGES = ["English", "Afrikaans", "isiZulu", "isiXhosa", "Tsonga", "Sepedi", "Sesotho", "Other"]
 VALID_CATEGORIES = [
     "Financial Fraud",
     "Xenophobic Incitement",
     "Political Disinformation",
     "Gang / Criminal Facilitation",
 ]
-VALID_MODELS = ["Gemini", "Llama", "OpenRouter model"]
+VALID_MODELS = ["Qwen 3 32B", "Groq Compound Mini", "Llama 3.1 8B", "GPT OSS 120B", "Other"]
 VALID_LABELS = [0, 1, 2]
 VALID_JUDGING_METHODS = ["automated", "human", "hybrid"]
 
@@ -40,23 +40,30 @@ REQUIRED_COLUMNS = [
 ]
 
 COLUMN_DTYPES = {
-    "prompt_id": "int64",
+    "prompt_id": "str",
     "seed_id": "int64",
     "language": "str",
     "harm_category": "str",
     "model": "str",
-    "label": "int64",
+    "label": "str",
     "judging_method": "str",
 }
 
-LANG_ORDER = ["English", "Afrikaans", "isiZulu", "isiXhosa", "Tsonga"]
+# Map string labels to ints after loading
+STR_LABEL_MAP = {
+    "refusal": 0,
+    "partial": 1,
+    "compliance": 2,
+}
+
+LANG_ORDER = ["English", "Afrikaans", "isiZulu", "isiXhosa", "Tsonga", "Sepedi", "Sesotho", "Other"]
 CAT_ORDER = [
     "Financial Fraud",
     "Xenophobic Incitement",
     "Political Disinformation",
     "Gang / Criminal Facilitation",
 ]
-MODEL_ORDER = ["Gemini", "Llama", "OpenRouter model"]
+MODEL_ORDER = ["Qwen 3 32B", "Groq Compound Mini", "Llama 3.1 8B", "GPT OSS 120B", "Other"]
 
 LABEL_NAMES = {0: "Refusal", 1: "Partial Compliance", 2: "Harmful Compliance"}
 
@@ -69,7 +76,9 @@ LANG_MAP = {
     "af": "Afrikaans",
     "zu": "isiZulu",
     "xh": "isiXhosa",
-    "tn": "Tsonga"
+    "ts": "Tsonga",
+    "nso": "Sepedi",
+    "st": "Sesotho"
 }
 
 CAT_MAP = {
@@ -77,15 +86,23 @@ CAT_MAP = {
 }
 
 MODEL_MAP = {
-    "gemini": "Gemini",
-    "groq_llama": "Llama",
-    "openrouter": "OpenRouter model"
+    # Simplified names (from scripts)
+    "kimi": "Kimi k2.6",
+    "llama33": "Llama 3.3 70B",
+    "qwen3": "Qwen 3 32B",
+    "gptoss": "GPT OSS 20B",
+    # Full API names (from actual evaluation.csv)
+    "qwen/qwen3-32b": "Qwen 3 32B",
+    "groq/compound-mini": "Groq Compound Mini",
+    "llama-3.1-8b-instant": "Llama 3.1 8B",
+    "openai/gpt-oss-120b": "GPT OSS 120B",
 }
 
 def _map_raw_data(df: pd.DataFrame) -> pd.DataFrame:
     """Map raw backend string values to the standard display names."""
     if "language" in df.columns:
         df["language"] = df["language"].replace(LANG_MAP)
+        df.loc[~df["language"].isin(VALID_LANGUAGES), "language"] = "Other"
     if "harm_category" in df.columns:
         df["harm_category"] = df["harm_category"].replace(CAT_MAP)
     if "model" in df.columns:
@@ -117,9 +134,28 @@ def _validate_types(df: pd.DataFrame) -> pd.DataFrame:
             if dtype == "int64":
                 df[col] = pd.to_numeric(df[col], errors="coerce")
             elif dtype == "str":
-                df[col] = df[col].astype(str)
+                df[col] = df[col].astype(str).str.strip()
         except Exception as e:
             raise TypeError(f"Cannot coerce column '{col}' to {dtype}: {e}")
+    return df
+
+
+def _normalize_labels(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalize labels to integers.
+    Accepts either string labels (refusal/partial/compliance) or numeric (0/1/2).
+    Rows with unrecognized labels are dropped with a warning.
+    """
+    df = df.copy()
+    # Try string mapping first
+    df["label"] = df["label"].map(lambda x: STR_LABEL_MAP.get(str(x).lower().strip(), x))
+    # Try numeric coercion for any remaining non-int values
+    df["label"] = pd.to_numeric(df["label"], errors="coerce")
+    n_before = len(df)
+    df = df.dropna(subset=["label"])
+    df["label"] = df["label"].astype(int)
+    if len(df) < n_before:
+        print(f"[WARNING] Dropped {n_before - len(df)} rows with unrecognized label values.")
     return df
 
 
@@ -142,12 +178,13 @@ def _validate_categories(df: pd.DataFrame) -> None:
 
     invalid_model = df[~df["model"].isin(VALID_MODELS)]
     if len(invalid_model) > 0:
-        raise ValueError(f"Invalid models: {invalid_model['model'].unique().tolist()}")
+        print(f"[WARNING] Invalid models found. Mapping to 'Other'. {invalid_model['model'].unique().tolist()}")
+        df.loc[~df["model"].isin(VALID_MODELS), "model"] = "Other"
 
 
 def _validate_missing(df: pd.DataFrame) -> pd.DataFrame:
     """Drop rows with missing values in critical columns."""
-    critical_cols = ["prompt_id", "language", "harm_category", "model", "label"]
+    critical_cols = ["language", "harm_category", "model", "label"]
     n_before = len(df)
     df = df.dropna(subset=critical_cols)
     n_after = len(df)
@@ -220,6 +257,7 @@ def load_evaluation(filepath: str = "evaluation.csv") -> pd.DataFrame:
     # Validation pipeline
     _validate_columns(df, filepath)
     df = _validate_types(df)
+    df = _normalize_labels(df)   # converts "refusal"/"partial"/"compliance" → 0/1/2
     df = _validate_missing(df)
     _validate_labels(df)
     _validate_categories(df)
@@ -230,6 +268,7 @@ def load_evaluation(filepath: str = "evaluation.csv") -> pd.DataFrame:
     print(f"[INFO] Validation passed. {len(df)} clean rows ready.")
     print(f"[INFO] Label distribution:\n{df['label'].value_counts().sort_index().to_string()}")
     print(f"[INFO] Language distribution:\n{df['language'].value_counts().to_string()}")
+    print(f"[INFO] Model distribution:\n{df['model'].value_counts().to_string()}")
 
     return df
 

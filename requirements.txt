@@ -4,8 +4,7 @@ pandas>=2.0.0               # CSV read/write across all scripts
 requests>=2.31.0            # HTTP calls to Groq + OpenRouter REST APIs
 
 # ── AI provider SDKs ─────────────────────────────────────────
-google-generativeai>=0.5.0  # Gemini (pip name: google-generativeai)
-groq>=0.9.0                 # Official Groq Python SDK
+# Removed provider-specific SDKs. All routing via OpenRouter + requests.
 
 # ── Visualisation ────────────────────────────────────────────
 matplotlib>=3.8.0           # figures in analysis.py
