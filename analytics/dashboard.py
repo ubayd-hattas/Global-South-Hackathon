@@ -98,42 +98,61 @@ MODEL_COLORS = {"Gemini": "#534AB7", "Llama": "#0F6E56", "OpenRouter model": "#D
 # ---------------------------------------------------------------------------
 
 @st.cache_data
-
 def load_data(filepath: str = "evaluation.csv"):
     """Load and prepare evaluation data."""
-    # Try multiple paths
-    paths = [filepath, "evaluation.csv", "../evaluation.csv", "data/evaluation.csv"]
+    import sys
+    # Ensure we can import data_loader when running from root
+    current_dir = Path(__file__).parent
+    if str(current_dir) not in sys.path:
+        sys.path.append(str(current_dir))
+    
+    from data_loader import load_evaluation
+    
+    # Try multiple paths robustness (__file__ based)
+    paths = [
+        current_dir / filepath,
+        current_dir / "evaluation.csv",
+        current_dir.parent / "evaluation.csv", 
+        current_dir.parent / "data" / "results" / "evaluation.csv"
+    ]
+    
     df = None
+    loaded_path = None
     for p in paths:
-        if Path(p).exists():
-            df = pd.read_csv(p)
-            break
+        if p.exists():
+            try:
+                df = load_evaluation(str(p))
+                loaded_path = p
+                break
+            except Exception as e:
+                print(f"Failed to load {p}: {e}")
+                continue
 
-    if df is None:
-        st.error("❌ evaluation.csv not found. Please ensure it exists in the project directory.")
-        st.stop()
-
-    # Create derived columns
-    df["is_refusal"] = (df["label"] == 0).astype(int)
-    df["is_partial"] = (df["label"] == 1).astype(int)
-    df["is_jailbreak"] = (df["label"] == 2).astype(int)
-    df["is_compliance"] = (df["label"] > 0).astype(int)
-    df["label_name"] = df["label"].map(LABEL_NAMES)
-    df["severity_weight"] = df["label"].map({0: 0.0, 1: 0.5, 2: 1.0})
-
-    # Categorical ordering
-    df["language"] = pd.Categorical(df["language"], categories=LANG_ORDER, ordered=True)
-    df["harm_category"] = pd.Categorical(df["harm_category"], categories=CAT_ORDER, ordered=True)
-    df["model"] = pd.Categorical(df["model"], categories=MODEL_ORDER, ordered=True)
-
-    return df
+    if df is not None:
+        return df, "Research Mode", loaded_path
+    else:
+        # Return an empty DataFrame with the correct schema
+        empty_df = pd.DataFrame({
+            "prompt_id": [], "seed_id": [], "language": pd.Series(dtype='category'),
+            "harm_category": pd.Series(dtype='category'), "model": pd.Series(dtype='category'),
+            "label": [], "judging_method": [], "is_refusal": [], "is_partial": [], 
+            "is_jailbreak": [], "is_compliance": [], "label_name": [], "severity_weight": []
+        })
+        empty_df["language"] = pd.Categorical([], categories=LANG_ORDER, ordered=True)
+        empty_df["harm_category"] = pd.Categorical([], categories=CAT_ORDER, ordered=True)
+        empty_df["model"] = pd.Categorical([], categories=MODEL_ORDER, ordered=True)
+        return empty_df, "Demo Mode", None
 
 # ---------------------------------------------------------------------------
 # Load Data
 # ---------------------------------------------------------------------------
 
 try:
-    df = load_data()
+    df, mode, loaded_path = load_data()
+    if mode == "Demo Mode":
+        st.warning("⚠️ **Demo Mode Active:** `evaluation.csv` not found. Displaying empty dashboard. Please generate data to view visualizations.")
+    else:
+        st.success(f"✅ **Research Mode Active:** Loaded data from `{loaded_path.name}`")
 except Exception as e:
     st.error(f"❌ Error loading data: {e}")
     st.stop()
@@ -198,8 +217,7 @@ elif label_filter == "Jailbreak Only":
     filtered_df = filtered_df[filtered_df["label"] == 2]
 
 if len(filtered_df) == 0:
-    st.warning("⚠️ No data matches the selected filters. Please adjust your selection.")
-    st.stop()
+    st.warning("⚠️ No data matches the selected filters. Please adjust your selection or ensure data is loaded.")
 
 # ---------------------------------------------------------------------------
 # KPI Calculation

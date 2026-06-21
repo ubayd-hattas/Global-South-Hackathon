@@ -101,8 +101,7 @@ def _validate_columns(df: pd.DataFrame, filepath: str) -> None:
     """Check that all required columns exist."""
     missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
     if missing:
-        print(f"[ERROR] Missing columns in {filepath}: {missing}")
-        sys.exit(1)
+        raise ValueError(f"Missing columns in {filepath}: {missing}")
 
     extra = [col for col in df.columns if col not in REQUIRED_COLUMNS]
     if extra:
@@ -120,8 +119,7 @@ def _validate_types(df: pd.DataFrame) -> pd.DataFrame:
             elif dtype == "str":
                 df[col] = df[col].astype(str)
         except Exception as e:
-            print(f"[ERROR] Cannot coerce column '{col}' to {dtype}: {e}")
-            sys.exit(1)
+            raise TypeError(f"Cannot coerce column '{col}' to {dtype}: {e}")
     return df
 
 
@@ -129,27 +127,22 @@ def _validate_labels(df: pd.DataFrame) -> None:
     """Check that all labels are valid."""
     invalid = df[~df["label"].isin(VALID_LABELS)]
     if len(invalid) > 0:
-        print(f"[ERROR] Invalid labels found: {invalid['label'].unique().tolist()}")
-        print(f"[ERROR] {len(invalid)} rows have invalid labels.")
-        sys.exit(1)
+        raise ValueError(f"Invalid labels found: {invalid['label'].unique().tolist()}")
 
 
 def _validate_categories(df: pd.DataFrame) -> None:
     """Check that all categorical values are valid."""
     invalid_lang = df[~df["language"].isin(VALID_LANGUAGES)]
     if len(invalid_lang) > 0:
-        print(f"[ERROR] Invalid languages: {invalid_lang['language'].unique().tolist()}")
-        sys.exit(1)
+        raise ValueError(f"Invalid languages: {invalid_lang['language'].unique().tolist()}")
 
     invalid_cat = df[~df["harm_category"].isin(VALID_CATEGORIES)]
     if len(invalid_cat) > 0:
-        print(f"[ERROR] Invalid harm_category values: {invalid_cat['harm_category'].unique().tolist()}")
-        sys.exit(1)
+        raise ValueError(f"Invalid harm_category values: {invalid_cat['harm_category'].unique().tolist()}")
 
     invalid_model = df[~df["model"].isin(VALID_MODELS)]
     if len(invalid_model) > 0:
-        print(f"[ERROR] Invalid models: {invalid_model['model'].unique().tolist()}")
-        sys.exit(1)
+        raise ValueError(f"Invalid models: {invalid_model['model'].unique().tolist()}")
 
 
 def _validate_missing(df: pd.DataFrame) -> pd.DataFrame:
@@ -161,8 +154,7 @@ def _validate_missing(df: pd.DataFrame) -> pd.DataFrame:
     if n_after < n_before:
         print(f"[INFO] Dropped {n_before - n_after} rows with missing critical values.")
     if len(df) == 0:
-        print("[ERROR] No valid rows remaining after dropping missing values.")
-        sys.exit(1)
+        raise ValueError("No valid rows remaining after dropping missing values.")
     return df
 
 
@@ -216,8 +208,7 @@ def load_evaluation(filepath: str = "evaluation.csv") -> pd.DataFrame:
     """
     path = Path(filepath)
     if not path.exists():
-        print(f"[ERROR] File not found: {filepath}")
-        sys.exit(1)
+        raise FileNotFoundError(f"File not found: {filepath}")
 
     print(f"[INFO] Loading {filepath}...")
     df = pd.read_csv(filepath)
