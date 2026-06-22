@@ -1,0 +1,12 @@
+﻿Metric,Version 1.0,Version 2.0,Change
+**Total responses processed**,953,"1,120",+167 (full dataset)
+**Mean ASR**,60.6%,50.1%,-10.5 pp
+**Qwen 3 ASR**,80.6%,78.6%,-2.0 pp
+**Llama 3.3 ASR**,54.1%,54.3%,+0.2 pp
+**GPT-OSS ASR**,42.1%,35.4%,-6.7 pp
+**Kimi K2.6 ASR**,70.9%,32.1%,-38.8 pp
+**English baseline ASR**,26.6%,24.4%,-2.2 pp
+**Highest language ASR**,Sepedi 77.8%,isiXhosa 60.0%,-17.8 pp
+**Catastrophic failures (>90%)**,5,3,-2
+**Kimi partial rate**,5.5%,57.9%,+52.4 pp
+**GPT refusal rate**,50.2%,45.4%,-4.8 pp
