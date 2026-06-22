@@ -26,7 +26,9 @@ ENV/
 
 # ── Generated data (large, reproducible) ─────────────────────
 data/results/responses.csv
-data/results/evaluation.csv
+# NOTE: evaluation.csv is REQUIRED for the Streamlit dashboard.
+# It must be committed to the repo so Streamlit Cloud can access it.
+# data/results/evaluation.csv
 
 # Keep the placeholder files so the results/ folder exists in git
 !data/results/.gitkeep

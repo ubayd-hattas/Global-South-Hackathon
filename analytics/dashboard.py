@@ -41,9 +41,38 @@ ASR_COLORSCALE = [
 ]
 
 # ---------------------------------------------------------------------------
+# Path Resolution (robust — does NOT rely on cwd)
+# ---------------------------------------------------------------------------
+def _resolve_repo_root():
+    """Return the repository root based on this file's absolute location."""
+    # __file__ is analytics/dashboard.py
+    # resolve() follows symlinks, parent.parent gives repo root
+    return Path(__file__).resolve().parent.parent
+
+REPO_ROOT = _resolve_repo_root()
+
+# Ordered list of candidate paths for evaluation.csv
+# Most specific / likely first
+CSV_CANDIDATES = [
+    REPO_ROOT / "data" / "results" / "evaluation.csv",
+    REPO_ROOT / "evaluation.csv",
+    Path(__file__).resolve().parent / "evaluation.csv",
+    Path(__file__).resolve().parent / "data" / "results" / "evaluation.csv",
+]
+
+def _find_evaluation_csv():
+    """Return (path, exists) for the first candidate that is present on disk."""
+    for candidate in CSV_CANDIDATES:
+        if candidate.exists():
+            return candidate, True
+    # Return the primary expected path even if it doesn't exist
+    return CSV_CANDIDATES[0], False
+
+
+# ---------------------------------------------------------------------------
 # Data Loading (cached with file-hash invalidation)
 # ---------------------------------------------------------------------------
-def _compute_file_hash(path: Path) -> str:
+def _compute_file_hash(path):
     import hashlib
     if not path.exists():
         return ""
@@ -51,7 +80,7 @@ def _compute_file_hash(path: Path) -> str:
         return hashlib.md5(f.read()).hexdigest()
 
 @st.cache_data
-def load_data(filepath: str = "evaluation.csv", file_hash: str = ""):
+def load_data(file_hash=""):
     import sys
     current_dir = Path(__file__).parent
     if str(current_dir) not in sys.path:
@@ -59,25 +88,17 @@ def load_data(filepath: str = "evaluation.csv", file_hash: str = ""):
     
     from data_loader import load_evaluation, VALID_LANGUAGES, VALID_CATEGORIES, VALID_MODELS
     
-    paths = [
-        current_dir / filepath,
-        current_dir / "evaluation.csv",
-        current_dir.parent / "evaluation.csv", 
-        current_dir.parent / "data" / "results" / "evaluation.csv"
-    ]
+    csv_path, found = _find_evaluation_csv()
     
     df = None
     loaded_path = None
-    for p in paths:
-        if p.exists():
-            try:
-                df = load_evaluation(str(p))
-                loaded_path = p
-                break
-            except Exception as e:
-                print(f"Failed to load {p}: {e}")
-                continue
-
+    if found:
+        try:
+            df = load_evaluation(str(csv_path))
+            loaded_path = csv_path
+        except Exception as e:
+            print(f"Failed to load {csv_path}: {e}")
+    
     if df is not None:
         return df, "Research Mode", loaded_path, VALID_LANGUAGES, VALID_CATEGORIES, VALID_MODELS
     else:
@@ -95,13 +116,20 @@ def load_data(filepath: str = "evaluation.csv", file_hash: str = ""):
 # ---------------------------------------------------------------------------
 # Load Data (with cache invalidation via file hash)
 # ---------------------------------------------------------------------------
-_eval_path = Path(__file__).parent / "evaluation.csv"
-if not _eval_path.exists():
-    _eval_path = Path(__file__).parent.parent / "data" / "results" / "evaluation.csv"
-_file_hash = _compute_file_hash(_eval_path) if _eval_path.exists() else ""
+csv_path, found = _find_evaluation_csv()
+_file_hash = _compute_file_hash(csv_path) if found else ""
 
 try:
     df, mode, loaded_path, LANG_ORDER, CAT_ORDER, MODEL_ORDER = load_data(file_hash=_file_hash)
+    
+    # Startup validation
+    st.markdown("---")
+    st.markdown("**📋 Deployment Audit**")
+    st.write(f"**Expected CSV path:** `{csv_path}`")
+    st.write(f"**Exists:** `{found}`")
+    st.write(f"**Rows loaded:** `{len(df) if mode == 'Research Mode' else 0}`")
+    st.markdown("---")
+    
     if mode == "Demo Mode":
         st.warning("⚠️ **Demo Mode Active:** `evaluation.csv` not found. Displaying empty dashboard. Please drop in your data to view visualizations.")
     else:
